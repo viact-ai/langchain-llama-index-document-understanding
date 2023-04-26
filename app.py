@@ -1,17 +1,22 @@
 import os 
+import dotenv
 import shutil
 import gradio as gr
 from typing import Union
-from langchain.agents import AgentExecutor
+from os import getenv
 
 from src.utils.logger import get_logger
 from src.utils.file_helper import get_filename 
 from src.LlamaIndex.index import save_index, get_embeddings_from_pdf
 from src.Agent.LLamaIndexAgent.agent import build_gpt_index_chat_agent_executor 
+from langchain.agents import AgentExecutor
 from src.ChatWrapper.ChatWrapper import ChatWrapper
 from src.constants import FAISS_LOCAL_PATH, SAVE_DIR, GPT_INDEX_LOCAL_PATH
 from src.utils.prepare_project import prepare_project_dir
 
+
+dotenv.load_dotenv()
+assert getenv("OPENAI_API_KEY") is not None, "OPENAI_API_KEY not set in .env"
 
 
 def load_gpt_index_agent(index_name: str = None) -> AgentExecutor:
@@ -123,30 +128,32 @@ def app() -> gr.Blocks:
                 gr.Markdown("<h3><center>GPTIndex + LangChain Demo</center></h3>")
 
             with gr.Row():
-                gpt_index_dropdown_btn = gr.Dropdown(
+                llama_index_dropdown_btn = gr.Dropdown(
+                    value=GPT_INDEX_LIST_COLLECTIONS[0], 
                     label="Index/Collection to chat with",
                     choices=GPT_INDEX_LIST_COLLECTIONS)
 
-                gpt_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
+                llama_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
 
-            gpt_temperature_llm_slider = gr.Slider(0, 2, step=0.2, value=0.1, label="Temperature")
-            gpt_temperature_llm_slider.change(
+            temperature_llm_slider = gr.Slider(0, 2, step=0.2, value=0.1, label="Temperature")
+            temperature_llm_slider.change(
                 change_temperature_gpt_index_llm_handler,
-                inputs=gpt_temperature_llm_slider 
+                inputs=temperature_llm_slider 
             )
 
-            gpt_index_chatbot = gr.Chatbot()
+            llama_chatbot = gr.Chatbot()
             with gr.Row():
-                gpt_message_txt_box = gr.Textbox(
+                llama_message_txt_box = gr.Textbox(
                     label="What's your question?",
                     placeholder="What's the answer to life, the universe, and everything?",
                     lines=1,
                 ).style(full_width=True)
 
-                gpt_submit_chat_msg_btn = gr.Button(
-                    value="Send", variant="primary").style(full_width=False)
+                llama_submit_chat_msg_btn = gr.Button(
+                    value="Send", 
+                    variant="primary").style(full_width=False)
 
-                gpt_clear_chat_history_btn = gr.Button(
+                llama_clear_chat_history_btn = gr.Button(
                     value="Clear chat history (will clear chatbot memory)",
                     variant="stop").style(full_width=False)
 
@@ -156,7 +163,7 @@ def app() -> gr.Blocks:
                     "What should I do tonight?",
                     "Whats 2 + 2?",
                 ],
-                inputs=gpt_message_txt_box,
+                inputs=llama_message_txt_box,
             )
 
             gr.HTML("Demo application of a LangChain chain.")
@@ -195,33 +202,33 @@ def app() -> gr.Blocks:
                                         gpt_overlap_chunk_slider, gpt_index_name],
                                 outputs=gpt_status_text)
 
-        # NOTE: GPT Index
-        gpt_state = gr.State()
-        gpt_agent_state = gr.State()
+        # NOTE: Llama Index
+        llama_state = gr.State()
+        llama_agent_state = gr.State()
 
-        gpt_index_dropdown_btn.change(change_gpt_index_agent_handler,
-                                  inputs=gpt_index_dropdown_btn,
-                                  outputs=[gpt_index_chatbot, gpt_state, gpt_agent_state, gpt_temperature_llm_slider])
+        llama_index_dropdown_btn.change(change_gpt_index_agent_handler,
+                                  inputs=llama_index_dropdown_btn,
+                                  outputs=[llama_chatbot, llama_state, llama_agent_state, temperature_llm_slider])
 
 
-        gpt_submit_chat_msg_btn.click(chat_gpt_index_handler,
-                                      inputs=[gpt_message_txt_box,
-                                              gpt_state, gpt_agent_state],
-                                      outputs=[gpt_index_chatbot, gpt_state])
+        llama_submit_chat_msg_btn.click(chat_gpt_index_handler,
+                                      inputs=[llama_message_txt_box,
+                                              llama_state, llama_agent_state],
+                                      outputs=[llama_chatbot, llama_state])
 
-        gpt_message_txt_box.submit(chat_gpt_index_handler,
-                                   inputs=[gpt_message_txt_box,
-                                           gpt_state, gpt_agent_state],
-                                   outputs=[gpt_index_chatbot, gpt_state],
+        llama_message_txt_box.submit(chat_gpt_index_handler,
+                                   inputs=[llama_message_txt_box,
+                                           llama_state, llama_agent_state],
+                                   outputs=[llama_chatbot, llama_state],
                                    api_name="chats_gpt_index")
 
-        gpt_refresh_btn.click(fn=gpt_index_refresh_collection_list_handler,
-                          outputs=gpt_index_dropdown_btn)
+        llama_refresh_btn.click(fn=gpt_index_refresh_collection_list_handler,
+                          outputs=llama_index_dropdown_btn)
 
 
-        gpt_clear_chat_history_btn.click(
+        llama_clear_chat_history_btn.click(
             clear_gpt_index_chat_history_handler,
-            outputs=[gpt_index_chatbot, gpt_state, gpt_agent_state]
+            outputs=[llama_chatbot, llama_state, llama_agent_state]
         )
 
     return block
@@ -262,18 +269,22 @@ if __name__ == "__main__":
     debug = args.debug
     server_port = args.port
     is_show_api = args.show_api
-    agent_verbose = args.show_api # NOTE: set this to constant.py 
+    agent_verbose = args.show_api # TODO: set this to constant.py 
 
     logger = get_logger()
     logger.info(f"Starting server with config: {args}")
 
-    prepare_project_dir()
+    prepare_project_dir(logger)
+    
+    # Declared global variable scope
     UPLOADED_FILES = []
     LIST_COLLECTIONS = os.listdir(FAISS_LOCAL_PATH)
     GPT_INDEX_LIST_COLLECTIONS = os.listdir(GPT_INDEX_LOCAL_PATH)
+    gpt_index_agent_executor = load_gpt_index_agent(GPT_INDEX_LIST_COLLECTIONS[0])
+    chat_gpt_index_agent = ChatWrapper(gpt_index_agent_executor)
+
 
     block = app()
-
     block.queue(concurrency_count=n_concurrency).launch(
         auth=(username, password),
         debug=debug,

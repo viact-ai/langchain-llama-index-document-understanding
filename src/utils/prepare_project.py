@@ -1,7 +1,8 @@
 import os 
-from constants import * 
+from typing import Any
+from src.constants import * 
 
-def prepare_project_dir(logger) -> None:
+def prepare_project_dir(logger: Any) -> None:
     if not os.path.exists(FAISS_LOCAL_PATH):
         logger.info(f"created {FAISS_LOCAL_PATH}")
         os.mkdir(FAISS_LOCAL_PATH)
