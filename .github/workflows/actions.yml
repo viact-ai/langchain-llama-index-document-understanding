@@ -1,0 +1,26 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: SSH and deploy app
+      uses: appleboy/ssh-action@master
+      with:
+        host: 52.221.42.209
+        username: root
+        key: ${{ secrets.SSH_KEY }}
+        port: 22
+        command_timeout: 60m
+        script: |
+          cd /root/langchain-llama-index-document-understanding
+          source /opt/lli-document-understanding/bin/activate && pip install -r requirements.txt
+          git checkout main
+          git reset --hard HEAD
+          git pull origin main
+          systemctl restart lli-document-understanding
+          systemctl status lli-document-understanding
