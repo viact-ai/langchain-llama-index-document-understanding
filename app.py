@@ -289,5 +289,6 @@ if __name__ == "__main__":
         auth=(username, password),
         debug=debug,
         server_port=server_port,
-        show_api=is_show_api
+        show_api=is_show_api,
+        server_name='0.0.0.0'
     )
