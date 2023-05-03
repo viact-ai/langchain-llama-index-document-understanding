@@ -18,9 +18,9 @@ jobs:
         command_timeout: 60m
         script: |
           cd /root/langchain-llama-index-document-understanding
-          source /opt/lli-document-understanding/bin/activate && pip install -r requirements.txt
           git checkout main
           git reset --hard HEAD
           git pull origin main
+          source /opt/lli-document-understanding/bin/activate && pip install -r requirements.txt
           systemctl restart lli-document-understanding
           systemctl status lli-document-understanding
