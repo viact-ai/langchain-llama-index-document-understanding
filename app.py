@@ -248,6 +248,8 @@ if __name__ == "__main__":
                         type=int, help="Number of concurrent blocks to process")
     parser.add_argument("--debug", dest="debug",
                         action="store_true", help="Enable debug mode")
+    parser.add_argument("--server_name", dest="server_name",
+                        default="0.0.0.0", help="Server Name")
     parser.add_argument("--port", dest="port", default=8000,
                         type=int, help="Server port")
     parser.add_argument("--show-api", dest="show_api",
@@ -270,6 +272,7 @@ if __name__ == "__main__":
     server_port = args.port
     is_show_api = args.show_api
     agent_verbose = args.show_api # TODO: set this to constant.py 
+    server_name = args.server_name
 
     logger = get_logger()
     logger.info(f"Starting server with config: {args}")
@@ -289,6 +292,6 @@ if __name__ == "__main__":
         auth=(username, password),
         debug=debug,
         server_port=server_port,
-        show_api=is_show_api,
-        server_name='0.0.0.0'
+        server_name=server_name, 
+        show_api=is_show_api
     )
