@@ -8,10 +8,11 @@ from os import getenv
 from src.utils.logger import get_logger
 from src.utils.file_helper import get_filename 
 from src.LlamaIndex.index import save_index, get_embeddings_from_pdf
-from src.Agent.LLamaIndexAgent.agent import build_gpt_index_chat_agent_executor 
+from src.LlamaIndex.graph import build_graph_from_indices, save_graph
+from src.Agent.LLamaIndexAgent.agent import build_graph_chat_agent_executor 
 from langchain.agents import AgentExecutor
 from src.ChatWrapper.ChatWrapper import ChatWrapper
-from src.constants import FAISS_LOCAL_PATH, SAVE_DIR, GPT_INDEX_LOCAL_PATH
+from src.constants import KNOWLEDGE_GRAPH_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX
 from src.utils.prepare_project import prepare_project_dir
 
 
@@ -19,10 +20,10 @@ dotenv.load_dotenv()
 assert getenv("OPENAI_API_KEY") is not None, "OPENAI_API_KEY not set in .env"
 
 
-def load_gpt_index_agent(index_name: str = None) -> AgentExecutor:
+def load_agent(index_name: str = None) -> AgentExecutor:
     logger.info(
-        f"======================Using GPTIndex Agent======================")
-    agent_executor = build_gpt_index_chat_agent_executor(index_name=index_name)
+        f"======================Using Llama-Index (GPT-Index) Agent======================")
+    agent_executor = build_graph_chat_agent_executor(graph_name=index_name)
     logger.info(f"Agent has access to following tools {agent_executor.tools}")
     logger.info(
         f"Agent used temperature: {agent_executor.agent.llm_chain.llm.temperature}")
@@ -52,29 +53,66 @@ def upload_file_handler(files) -> list[str]:
     UPLOADED_FILES = uploads_filepath
     return uploads_filepath
 
-
-def gpt_index_document_from_single_pdf_handler(
-        chunk_size: int,
-        overlap_chunk: int,
-        index_name: str,
-        progress=gr.Progress()) -> str:
+def multi_pdf_documents_indexing_handler(
+    chunk_size: int,
+    overlap_chunk: int,
+    graph_name: str,
+    progress=gr.Progress()
+) -> str: 
     global UPLOADED_FILES  
     logger.info(
-        f"{chunk_size},{overlap_chunk}, {UPLOADED_FILES}, {index_name}")
+        f"{chunk_size},{overlap_chunk}, {UPLOADED_FILES}, {graph_name}")
 
-    progress(0.2, "Verify Documents....")
-    if not index_name:
-        filename = get_filename(UPLOADED_FILES[0])
+    # indexing multiple documents 
+    all_indices = []
+    index_summaries = []
+    for idx, file in enumerate(UPLOADED_FILES): 
+        progress(0.1, "Verify Documents....")
+        filename = get_filename(UPLOADED_FILES[idx])
         index_name = os.path.splitext(filename)[0]
 
-    progress(0.5, "Analyzing & Indexing Documents....")
-    index = get_embeddings_from_pdf(
-        filepath=UPLOADED_FILES[0])
+        progress(0.3, "Analyzing & Indexing Documents....")
+        index = get_embeddings_from_pdf(
+            filepath=UPLOADED_FILES[idx])
+        summary = index.query(SUMMARY_PROMPT_FOR_EACH_INDEX)                    
+        summary = summary.response # NOTE: convert response to str
+        all_indices.append(index)
+        index_summaries.append(summary)
 
-    progress(0.3, "Saving index...")
-    save_index(index, index_name=index_name)
-    logger.info(f"Indexing complete & saving {index}....")
-    return "Done!"
+        progress(0.3, "Saving index...")
+        save_index(index, saved_path=index_name)
+        logger.info(f"Indexing complete & saving {index_name}....")
+
+    # construct graph from indices
+    progress(0.3, "Constructing knowledge from from multiple indices...")
+    graph = build_graph_from_indices(all_indices=all_indices, index_summaries=index_summaries) 
+    save_graph(graph, graph_name) 
+    return "!!! DONE !!!"
+
+
+# NOTE: un-used
+# def single_pdf_documents_indexing_handler(
+#         chunk_size: int,
+#         overlap_chunk: int,
+#         index_name: str,
+#         progress=gr.Progress()) -> str:
+#     global UPLOADED_FILES  
+#     logger.info(
+#         f"{chunk_size},{overlap_chunk}, {UPLOADED_FILES}, {index_name}")
+
+#     progress(0.2, "Verify Documents....")
+#     if not index_name:
+#         filename = get_filename(UPLOADED_FILES[0])
+#         index_name = os.path.splitext(filename)[0]
+
+#     progress(0.5, "Analyzing & Indexing Documents....")
+#     index = get_embeddings_from_pdf(
+#         filepath=UPLOADED_FILES[0])
+
+#     progress(0.3, "Saving index...")
+#     save_index(index, index_name=index_name)
+#     logger.info(f"Indexing complete & saving {index}....")
+#     return "Done!"
 
 
 def change_temperature_gpt_index_llm_handler(temperature: float) -> gr.Slider:
@@ -85,35 +123,40 @@ def change_temperature_gpt_index_llm_handler(temperature: float) -> gr.Slider:
         f"Change LLM temperature to {agent_executor.agent.llm_chain.llm.temperature}")
 
 
-def change_gpt_index_agent_handler(index_name: str, chatbot: gr.Chatbot) -> Union[gr.Chatbot, None, None, gr.Slider]:
+def change_agent_handler(index_name: str, chatbot: gr.Chatbot) -> Union[gr.Chatbot, None, None, gr.Slider]:
     logger.info(f"Change GPTIndex Agent to use collection: {index_name}")
 
     global chat_gpt_index_agent   
     chat_gpt_index_agent = None
 
-    agent_executor = load_gpt_index_agent(index_name=index_name)
+    agent_executor = load_agent(index_name=index_name)
     chat_gpt_index_agent = ChatWrapper(agent_executor)
 
     return gr.Chatbot.update(value=[]), None, None, gr.Slider.update(value=agent_executor.agent.llm_chain.llm.temperature)
 
 
-def chat_gpt_index_handler(message_txt_box, state, agent_state) -> Union[gr.Chatbot, gr.State]:
+def chat_with_agent_handler(message_txt_box, state, agent_state) -> Union[gr.Chatbot, gr.State]:
     global chat_gpt_index_agent
+    if not chat_gpt_index_agent: 
+        return [("There is no available document to chat with, you must indexing one before chatting","")], state 
+
     chatbot, state = chat_gpt_index_agent(message_txt_box, state, agent_state)
     return chatbot, state
 
 
-def gpt_index_refresh_collection_list_handler() -> gr.Dropdown:
+def refresh_collection_list_handler() -> gr.Dropdown:
     global GPT_INDEX_LIST_COLLECTIONS  
-    GPT_INDEX_LIST_COLLECTIONS = os.listdir(GPT_INDEX_LOCAL_PATH)
+    GPT_INDEX_LIST_COLLECTIONS = os.listdir(KNOWLEDGE_GRAPH_FOLDER)
     return gr.Dropdown.update(choices=GPT_INDEX_LIST_COLLECTIONS)
 
 
 
-def clear_gpt_index_chat_history_handler() -> Union[gr.Chatbot, None, None]:
+def clear_chat_history_handler() -> Union[gr.Chatbot, None, None]:
     global chat_gpt_index_agent  
-    chat_gpt_index_agent.clear_agent_memory()
-    logger.info(f"Clear agent memory...")
+    if chat_gpt_index_agent: 
+        chat_gpt_index_agent.clear_agent_memory()
+        logger.info(f"Clear agent memory...")
+    logger.info(f"Clear chat history...")
     return gr.Chatbot.update(value=[]), None, None
 
 
@@ -129,7 +172,7 @@ def app() -> gr.Blocks:
 
             with gr.Row():
                 llama_index_dropdown_btn = gr.Dropdown(
-                    value=GPT_INDEX_LIST_COLLECTIONS[0], 
+                    value=GPT_INDEX_LIST_COLLECTIONS[0] if GPT_INDEX_LIST_COLLECTIONS else None, 
                     label="Index/Collection to chat with",
                     choices=GPT_INDEX_LIST_COLLECTIONS)
 
@@ -172,7 +215,7 @@ def app() -> gr.Blocks:
             )
 
         css = "footer {display: none !important;} .gradio-container {min-height: 0px !important;}"
-        with gr.Tab(css=css, label="GPTIndex Document Indexing"):
+        with gr.Tab(css=css, label="Upload & Index"):
             file_output = gr.File()
             gpt_upload_button = gr.UploadButton(
                 "Click to upload *.pdf, *.txt files",
@@ -197,7 +240,7 @@ def app() -> gr.Blocks:
 
             gpt_status_text = gr.Textbox(label="Indexing Status")
 
-            gpt_index_doc_btn.click(gpt_index_document_from_single_pdf_handler,
+            gpt_index_doc_btn.click(multi_pdf_documents_indexing_handler,
                                 inputs=[gpt_chunk_slider,
                                         gpt_overlap_chunk_slider, gpt_index_name],
                                 outputs=gpt_status_text)
@@ -206,28 +249,28 @@ def app() -> gr.Blocks:
         llama_state = gr.State()
         llama_agent_state = gr.State()
 
-        llama_index_dropdown_btn.change(change_gpt_index_agent_handler,
+        llama_index_dropdown_btn.change(change_agent_handler,
                                   inputs=llama_index_dropdown_btn,
                                   outputs=[llama_chatbot, llama_state, llama_agent_state, temperature_llm_slider])
 
 
-        llama_submit_chat_msg_btn.click(chat_gpt_index_handler,
+        llama_submit_chat_msg_btn.click(chat_with_agent_handler,
                                       inputs=[llama_message_txt_box,
                                               llama_state, llama_agent_state],
                                       outputs=[llama_chatbot, llama_state])
 
-        llama_message_txt_box.submit(chat_gpt_index_handler,
+        llama_message_txt_box.submit(chat_with_agent_handler,
                                    inputs=[llama_message_txt_box,
                                            llama_state, llama_agent_state],
                                    outputs=[llama_chatbot, llama_state],
                                    api_name="chats_gpt_index")
 
-        llama_refresh_btn.click(fn=gpt_index_refresh_collection_list_handler,
+        llama_refresh_btn.click(fn=refresh_collection_list_handler,
                           outputs=llama_index_dropdown_btn)
 
 
         llama_clear_chat_history_btn.click(
-            clear_gpt_index_chat_history_handler,
+            clear_chat_history_handler,
             outputs=[llama_chatbot, llama_state, llama_agent_state]
         )
 
@@ -281,10 +324,13 @@ if __name__ == "__main__":
     
     # Declared global variable scope
     UPLOADED_FILES = []
-    LIST_COLLECTIONS = os.listdir(FAISS_LOCAL_PATH)
-    GPT_INDEX_LIST_COLLECTIONS = os.listdir(GPT_INDEX_LOCAL_PATH)
-    gpt_index_agent_executor = load_gpt_index_agent(GPT_INDEX_LIST_COLLECTIONS[0])
-    chat_gpt_index_agent = ChatWrapper(gpt_index_agent_executor)
+    GPT_INDEX_LIST_COLLECTIONS = os.listdir(KNOWLEDGE_GRAPH_FOLDER)
+
+    gpt_index_agent_executor = None 
+    chat_gpt_index_agent = None
+    if GPT_INDEX_LIST_COLLECTIONS:  
+        gpt_index_agent_executor = load_agent(GPT_INDEX_LIST_COLLECTIONS[0])
+        chat_gpt_index_agent = ChatWrapper(gpt_index_agent_executor) 
 
 
     block = app()

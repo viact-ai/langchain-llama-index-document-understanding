@@ -7,21 +7,27 @@ SAVE_DIR: str = "./uploads/"
 AGENT_VEROBSE: bool = True
 
 
-GPT_INDEX_QUERY_CONFIG = query_configs = [
+GRAPH_QUERY_CONFIG = [
     {
         "index_struct_type": "simple_dict",
         "query_mode": "default",
         "query_kwargs": {
-            "similarity_top_k": 5,
-            # "include_summary": True
-        },
+            "similarity_top_k": 10,
+            "response_mode": "tree_summarize"
+        }
     },
     {
-        "index_struct_type": "list",
+        "index_struct_type": "simple_dict",
         "query_mode": "default",
         "query_kwargs": {
-            "response_mode": "tree_summarize",
-            "verbose": True
+            "similarity_top_k": 10,
+            "response_mode": "tree_summarize"
         }
     },
 ]
+
+
+KNOWLEDGE_GRAPH_FOLDER: str = "./knowledge_graph" 
+
+
+SUMMARY_PROMPT_FOR_EACH_INDEX = """What is the overview for this document?"""
