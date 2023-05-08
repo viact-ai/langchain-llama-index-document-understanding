@@ -163,3 +163,4 @@ GPTIndexEmbeddings
 faiss
 .vscode
 uploads
+knowledge_graph

@@ -15,3 +15,7 @@ def prepare_project_dir(logger: Any) -> None:
         logger.info(f"created {SAVE_DIR}")
         os.mkdir(SAVE_DIR)
 
+    if not os.path.exists(KNOWLEDGE_GRAPH_FOLDER):
+        logger.info(f"created {KNOWLEDGE_GRAPH_FOLDER}")
+        os.mkdir(KNOWLEDGE_GRAPH_FOLDER)
+

@@ -1,54 +1,58 @@
-from src.constants import AGENT_VEROBSE
+from src.LlamaIndex.graph import load_graph
+from src.constants import AGENT_VEROBSE, GRAPH_QUERY_CONFIG
 from src.LlamaIndex.index import load_index
 
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import AgentExecutor
 from langchain.memory import ConversationBufferMemory
 
-from llama_index.langchain_helpers.agents import LlamaToolkit, create_llama_chat_agent, IndexToolConfig
+from llama_index.langchain_helpers.agents import create_llama_chat_agent, GraphToolConfig, LlamaGraphTool, LlamaToolkit
 
 
-def create_tool_from_index_name(
-    index_name: str,
+def create_tool_from_graph_name(
+    graph_name: str,
     name: str = None,
     description: str = None,
-    top_k: int = 3,
     return_direct: bool = True,
     return_source_documents: bool = False,
-) -> LlamaToolkit:
-    loaded_index = load_index(index_name=index_name)
+) -> GraphToolConfig:
+    graph = load_graph(graph_name=graph_name)
 
     if not name:
-        name = f"Vector Index for {index_name} Documents"
+        name = f"Vector Index for {graph_name} Documents"
 
     if not description:
-        description = f"This is your only tool, useful for when you want to answer queries about the {index_name} documents. DO NOT use this tool for the same input/query. "
+        description = f"This is your only tool, useful for when you want to answer queries about the {graph_name} documents. DO NOT use this tool for the same input/query. "
 
-    tool_config = [IndexToolConfig(
-        index=loaded_index,
+    tool_config = GraphToolConfig(
+        graph=graph,
         name=name,
         description=description,
-        index_query_kwargs={"similarity_top_k": top_k},
+        query_configs=GRAPH_QUERY_CONFIG, 
         tool_kwargs={
             "return_direct": return_direct,
             "return_sources": return_source_documents},
-    )]
-
-    toolkit = LlamaToolkit(
-        index_configs=tool_config,
     )
+
+    graph_tool = LlamaGraphTool.from_tool_config(
+        tool_config=tool_config,
+    )
+    
+    toolkit = LlamaToolkit(
+        graph_configs=[graph_tool]
+    )
+
     return toolkit
 
 
-# NOTE: to maintain similar name convention
-def build_gpt_index_chat_agent_executor(
-    index_name: str,
+def build_graph_chat_agent_executor(
+    graph_name: str,
     name: str = None,
     description: str = None,
 ) -> AgentExecutor:
 
-    toolkit = create_tool_from_index_name(
-        index_name=index_name,
+    toolkit = create_tool_from_graph_name(
+        graph_name=graph_name,
         name=name,
         description=description)
 
@@ -60,4 +64,8 @@ def build_gpt_index_chat_agent_executor(
         memory=memory,
         verbose=AGENT_VEROBSE
     )
+    
+    # NOTE: temporary fix because can't change this flag with GraphTool
+    agent_executor.tools[0].return_direct = True
+
     return agent_executor
