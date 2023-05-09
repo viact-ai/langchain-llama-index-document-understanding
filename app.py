@@ -62,33 +62,34 @@ def multi_pdf_documents_indexing_handler(
     global UPLOADED_FILES  
     logger.info(
         f"{chunk_size},{overlap_chunk}, {UPLOADED_FILES}, {graph_name}")
+    try: 
+        # indexing multiple documents 
+        all_indices = []
+        index_summaries = []
+        for idx, file in enumerate(UPLOADED_FILES): 
+            progress(0.1, "Verify Documents....")
+            filename = get_filename(UPLOADED_FILES[idx])
+            index_name = os.path.splitext(filename)[0]
 
-    # indexing multiple documents 
-    all_indices = []
-    index_summaries = []
-    for idx, file in enumerate(UPLOADED_FILES): 
-        progress(0.1, "Verify Documents....")
-        filename = get_filename(UPLOADED_FILES[idx])
-        index_name = os.path.splitext(filename)[0]
+            progress(0.3, "Analyzing & Indexing Documents....")
+            index = get_embeddings_from_pdf(
+                filepath=UPLOADED_FILES[idx])
+            summary = index.query(SUMMARY_PROMPT_FOR_EACH_INDEX)                    
+            summary = summary.response # NOTE: convert response to str
+            all_indices.append(index)
+            index_summaries.append(summary)
 
-        progress(0.3, "Analyzing & Indexing Documents....")
-        index = get_embeddings_from_pdf(
-            filepath=UPLOADED_FILES[idx])
-        summary = index.query(SUMMARY_PROMPT_FOR_EACH_INDEX)                    
-        summary = summary.response # NOTE: convert response to str
-        all_indices.append(index)
-        index_summaries.append(summary)
+            progress(0.3, "Saving index...")
+            save_index(index, saved_path=index_name)
+            logger.info(f"Indexing complete & saving {index_name}....")
 
-        progress(0.3, "Saving index...")
-        save_index(index, saved_path=index_name)
-        logger.info(f"Indexing complete & saving {index_name}....")
-
-    # construct graph from indices
-    progress(0.3, "Constructing knowledge from from multiple indices...")
-    graph = build_graph_from_indices(all_indices=all_indices, index_summaries=index_summaries) 
-    save_graph(graph, graph_name) 
-    return "!!! DONE !!!"
-
+        # construct graph from indices
+        progress(0.3, "Constructing knowledge from from multiple indices...")
+        graph = build_graph_from_indices(all_indices=all_indices, index_summaries=index_summaries) 
+        save_graph(graph, graph_name) 
+        return "!!! DONE !!!"
+    except ValueError: 
+        return f"!!! Can't extract information from this {filename} document!!!"
 
 # NOTE: un-used
 # def single_pdf_documents_indexing_handler(
