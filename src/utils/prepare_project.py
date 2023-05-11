@@ -19,3 +19,6 @@ def prepare_project_dir(logger: Any) -> None:
         logger.info(f"created {KNOWLEDGE_GRAPH_FOLDER}")
         os.mkdir(KNOWLEDGE_GRAPH_FOLDER)
 
+    if not os.path.exists(TENDER_SPECIFICATION_INDEX_FOLDER):
+        logger.info(f"created {TENDER_SPECIFICATION_INDEX_FOLDER}")
+        os.mkdir(TENDER_SPECIFICATION_INDEX_FOLDER)

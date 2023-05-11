@@ -4,6 +4,8 @@ import shutil
 import gradio as gr
 from typing import Union
 from os import getenv
+from src.Features.GenerateQuotation.generate_quotation import extract_project_requirements, generate_quotation
+from src.Features.GenerateQuotation.index import load_tender_index, save_tender_index
 
 from src.utils.logger import get_logger
 from src.utils.file_helper import get_filename 
@@ -12,7 +14,9 @@ from src.LlamaIndex.graph import build_graph_from_indices, save_graph
 from src.Agent.LLamaIndexAgent.agent import build_graph_chat_agent_executor 
 from langchain.agents import AgentExecutor
 from src.ChatWrapper.ChatWrapper import ChatWrapper
-from src.constants import KNOWLEDGE_GRAPH_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX
+from llama_index import GPTSimpleVectorIndex, GPTVectorStoreIndex
+from src.constants import KNOWLEDGE_GRAPH_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX, TENDER_SPECIFICATION_INDEX_FOLDER
+from src.Features.GenerateQuotation.prompt import RULES_PROMPT
 from src.utils.prepare_project import prepare_project_dir
 
 
@@ -88,7 +92,8 @@ def multi_pdf_documents_indexing_handler(
         graph = build_graph_from_indices(all_indices=all_indices, index_summaries=index_summaries) 
         save_graph(graph, graph_name) 
         return "!!! DONE !!!"
-    except ValueError: 
+    except ValueError as e: 
+        logger.info(f"{e}")
         return f"!!! Can't extract information from this {filename} document!!!"
 
 # NOTE: un-used
@@ -161,12 +166,143 @@ def clear_chat_history_handler() -> Union[gr.Chatbot, None, None]:
     return gr.Chatbot.update(value=[]), None, None
 
 
+def generate_quotation_handler(
+    rules_prompt, 
+    llm_temperature, 
+    progress= gr.Progress() 
+) -> gr.Textbox: 
+    global CURRENT_QUOTATION_VECTOR_INDEX 
+    if not CURRENT_QUOTATION_VECTOR_INDEX: 
+        return gr.Textbox.update(value="You must index tender specs before generate quotation") 
+
+    progress(0.4,"Generating project requirements...")
+    project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX) 
+
+    progress(0.6,"Generating quotation...")
+    response = generate_quotation(
+        rules_prompt=rules_prompt, 
+        project_requirement=project_requirements_response, 
+        temperature=llm_temperature
+    ) 
+    return gr.Textbox.update(value=response) 
+
+
+def quotation_refresh_tender_indexing_list_handler() -> gr.Dropdown: 
+    global QUOTATION_INEX_COLLECTION  
+    QUOTATION_INDEX_COLLECTION = os.listdir(TENDER_SPECIFICATION_INDEX_FOLDER)
+    return gr.Dropdown.update(choices=QUOTATION_INDEX_COLLECTION)
+
+
+def quotation_change_temperature_handler(temperature: float) -> gr.Slider: 
+    return gr.Slider.update(value=temperature) 
+
+
+def quotation_upload_file_handler(files) -> list[str]:
+    global QUOTATION_UPLOADED_FILES  
+    QUOTATION_UPLOADED_FILES = []
+
+    file_paths = [file.name for file in files]
+    # loop over all files in the source directory
+    uploads_filepath = []
+    for path in file_paths:
+        filename = get_filename(path)
+        destination_path = os.path.join(SAVE_DIR, filename)
+        
+        # copy file from source to destination
+        shutil.copy(path, destination_path)
+        uploads_filepath.append(destination_path)
+
+    QUOTATION_UPLOADED_FILES = uploads_filepath 
+    return uploads_filepath
+
+
+def quotation_tender_pdf_indexing_handler(
+    index_name: str
+) -> str: 
+    global QUOTATION_UPLOADED_FILES
+    index = get_embeddings_from_pdf(QUOTATION_UPLOADED_FILES[0])
+    save_tender_index(index=index, saved_path=index_name)
+    return "!!! DONE !!!"  
+
+
+def quotation_change_index_handler(index_name) -> None: 
+    global CURRENT_QUOTATION_VECTOR_INDEX 
+    CURRENT_QUOTATION_VECTOR_INDEX = load_tender_index(index_name) 
+
 
 
 def app() -> gr.Blocks:
     block = gr.Blocks(css=".gradio-container {background-color: lightgray}")
 
     with block:
+        with gr.Tab("Generate Quotation"): 
+            with gr.Row(): 
+                tender_specs_index_dropdown = gr.Dropdown(
+                        value=QUOTATION_INDEX_COLLECTION[0] if QUOTATION_INDEX_COLLECTION else None, 
+                        label="Tender Specification Embeddings to generate quotation from",
+                        choices=QUOTATION_INDEX_COLLECTION)
+                tender_index_list_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
+
+            with gr.Row(): 
+                with gr.Column(): 
+                    rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
+                                           value=RULES_PROMPT,
+                                           lines=15)
+                    quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.1, label="LLM Temperature (More creative when higher value)")
+
+                with gr.Column(): 
+                    named_tender_specs_txt_box = gr.Textbox(label="Name the tender specs indexing")
+                    tender_file = gr.File(label="Upload tender specification files")
+                    tender_uploaded_btn = gr.UploadButton(
+                        "Click to upload *.pdf, *.txt files",
+                        file_types=[".txt", ".pdf"],
+                        file_count="multiple"
+                    ) 
+                    indexing_tender_specs_btn = gr.Button(value="Indexing", variant="primary")
+
+
+            generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT")
+            create_quotation_btn = gr.Button("Create Quotation !!!",variant="primary")
+
+            with gr.Row(): 
+                import pandas as pd 
+                df = pd.read_csv("./comma_pricing_list.csv")
+                gr.Dataframe(df, label="Default pricing list table (for comparision)")
+
+
+        # event handler 
+        tender_specs_index_dropdown.change(
+            fn=quotation_change_index_handler, 
+            inputs=tender_specs_index_dropdown, 
+            outputs=None
+        )
+
+        tender_index_list_refresh_btn.click(
+            fn=quotation_refresh_tender_indexing_list_handler, 
+            inputs=None, 
+            outputs=tender_specs_index_dropdown
+        )
+
+        tender_uploaded_btn.upload(
+            quotation_upload_file_handler, 
+            tender_uploaded_btn, 
+            tender_file, 
+            api_name="upload_tender_specs"
+        )
+
+        indexing_tender_specs_btn.click(
+            fn=quotation_tender_pdf_indexing_handler, 
+            inputs=named_tender_specs_txt_box, 
+            outputs=named_tender_specs_txt_box
+        )
+
+        create_quotation_btn.click(
+            fn=generate_quotation_handler, 
+            inputs=[rules_txt_box, quotation_temperature_slider], 
+            outputs=generated_quotation_txt_box
+        )
+
+
         with gr.Tab("Chat GPT_Index"):
             with gr.Row():
                 gr.Markdown("<h3><center>GPTIndex + LangChain Demo</center></h3>")
@@ -332,6 +468,15 @@ if __name__ == "__main__":
     if GPT_INDEX_LIST_COLLECTIONS:  
         gpt_index_agent_executor = load_agent(GPT_INDEX_LIST_COLLECTIONS[0])
         chat_gpt_index_agent = ChatWrapper(gpt_index_agent_executor) 
+
+
+    # NOTE: quotation features 
+    QUOTATION_UPLOADED_FILES = []
+    QUOTATION_INDEX_COLLECTION = os.listdir(TENDER_SPECIFICATION_INDEX_FOLDER) 
+    CURRENT_QUOTATION_VECTOR_INDEX = None 
+
+    if QUOTATION_INDEX_COLLECTION: 
+       CURRENT_QUOTATION_VECTOR_INDEX = load_tender_index(QUOTATION_INDEX_COLLECTION[0]) 
 
 
     block = app()

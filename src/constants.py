@@ -6,6 +6,7 @@ SAVE_DIR: str = "./uploads/"
 
 AGENT_VEROBSE: bool = True
 
+TENDER_SPECIFICATION_INDEX_FOLDER: str = "./tender_specification_embeddings" 
 
 GRAPH_QUERY_CONFIG = [
     {
