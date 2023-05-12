@@ -51,7 +51,7 @@ product\tproduct_id\tdescriptions\tprice\tpricing_unit\tcategory
 For example: 
 ``` 
 product\tproduct_id\tdescriptions\tprice\tpricing_unit\tcategory 
-Customized AI engine\tD011\tUsage of customized AI detection module (after Item 10.0 activated)\t$1,000.00\t/month	Detection Modules
+Customized AI engine\tD011\tUsage of customized AI detection module (after Item 10.0 activated)\t$1,000.00\t/month\tDetection Modules
 ```"""
 
 ############
