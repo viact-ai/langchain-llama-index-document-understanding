@@ -170,7 +170,7 @@ def generate_quotation_handler(
     rules_prompt, 
     llm_temperature, 
     progress= gr.Progress() 
-) -> gr.Textbox: 
+): 
     global CURRENT_QUOTATION_VECTOR_INDEX 
     if not CURRENT_QUOTATION_VECTOR_INDEX: 
         return gr.Textbox.update(value="You must index tender specs before generate quotation") 
@@ -184,7 +184,7 @@ def generate_quotation_handler(
         project_requirement=project_requirements_response, 
         temperature=llm_temperature
     ) 
-    return gr.Textbox.update(value=response) 
+    return gr.Textbox.update(value=response), gr.Textbox.update(value=project_requirements_response) 
 
 
 def quotation_refresh_tender_indexing_list_handler() -> gr.Dropdown: 
@@ -248,7 +248,7 @@ def app() -> gr.Blocks:
                     rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
                                            value=RULES_PROMPT,
                                            lines=15)
-                    quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.1, label="LLM Temperature (More creative when higher value)")
+                    quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.2, label="LLM Temperature (More creative when higher value)")
 
                 with gr.Column(): 
                     named_tender_specs_txt_box = gr.Textbox(label="Name the tender specs indexing")
@@ -260,7 +260,7 @@ def app() -> gr.Blocks:
                     ) 
                     indexing_tender_specs_btn = gr.Button(value="Indexing", variant="primary")
 
-
+            generated_requirements_txt_box = gr.Textbox(label="Generated project requirements from documents")
             generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT")
             create_quotation_btn = gr.Button("Create Quotation !!!",variant="primary")
 
@@ -299,7 +299,7 @@ def app() -> gr.Blocks:
         create_quotation_btn.click(
             fn=generate_quotation_handler, 
             inputs=[rules_txt_box, quotation_temperature_slider], 
-            outputs=generated_quotation_txt_box
+            outputs=[generated_quotation_txt_box, generated_requirements_txt_box]
         )
 
 

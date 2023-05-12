@@ -46,12 +46,12 @@ But the matched product can be modified to FOLLOW THESE RULES:
 
 FORMAT_INSTRUCTION: str = """The returneded result must follow this CSV format: 
 ``` 
-items, descriptions, unit_price, qty
+product\tproduct_id\tdescriptions\tprice\tpricing_unit\tcategory 
 ```
 For example: 
 ``` 
-product_id,product,descriptions,price,pricing_unit,category
-G001,Admin user account login on viAct.ai,Admin user account login including set up w/ 5 standard user account, $100.00 ,/month,General Items
+product\tproduct_id\tdescriptions\tprice\tpricing_unit\tcategory 
+Customized AI engine\tD011\tUsage of customized AI detection module (after Item 10.0 activated)\t$1,000.00\t/month	Detection Modules
 ```"""
 
 ############
