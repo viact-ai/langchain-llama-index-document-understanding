@@ -243,20 +243,8 @@ def app() -> gr.Blocks:
 
     with block:
         with gr.Tab("Generate Quotation"): 
+            gr.HTML("<h1>Generate Embeddings from documents</h1>")
             with gr.Row(): 
-                tender_specs_index_dropdown = gr.Dropdown(
-                        value=QUOTATION_INDEX_COLLECTION[0] if QUOTATION_INDEX_COLLECTION else None, 
-                        label="Tender Specification Embeddings to generate quotation from",
-                        choices=QUOTATION_INDEX_COLLECTION)
-                tender_index_list_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
-
-            with gr.Row(): 
-                with gr.Column(): 
-                    rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
-                                           value=RULES_PROMPT,
-                                           lines=15)
-                    quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.2, label="LLM Temperature (More creative when higher value)")
-
                 with gr.Column(): 
                     named_tender_specs_txt_box = gr.Textbox(label="Name the tender specs indexing")
                     tender_file = gr.File(label="Upload tender specification files")
@@ -267,11 +255,27 @@ def app() -> gr.Blocks:
                     ) 
                     indexing_tender_specs_btn = gr.Button(value="Indexing", variant="primary")
 
+            gr.HTML("<h1>Embeddings Selection</h1>")
             with gr.Row(): 
-                generated_requirements_txt_box = gr.Textbox(label="Generated project requirements from documents").style(full_width=True)
-                generate_requirements_btn = gr.Button("Generate requirements").style(full_width=False)
+                tender_specs_index_dropdown = gr.Dropdown(
+                    value=QUOTATION_INDEX_COLLECTION[0] if QUOTATION_INDEX_COLLECTION else None, 
+                    label="Tender Specification Embeddings to generate quotation from",
+                    choices=QUOTATION_INDEX_COLLECTION)
+                tender_index_list_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
 
 
+            gr.HTML("<h1>Generate Quotation</h1>")
+            with gr.Row(): 
+                with gr.Column(): 
+                    rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
+                                           value=RULES_PROMPT,
+                                           lines=10)
+                with gr.Column(): 
+                    generated_requirements_txt_box = gr.Textbox(label="Generated project requirements from documents").style(full_width=True)
+                    generate_requirements_btn = gr.Button("Generate requirements").style(full_width=False)
+
+
+            quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.2, label="LLM Temperature (More creative when higher value)")
             with gr.Row(): 
                 generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT").style(full_width=True)
                 create_quotation_btn = gr.Button("Create Quotation",variant="primary").style(full_width=False)
