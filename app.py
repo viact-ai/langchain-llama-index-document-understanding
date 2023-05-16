@@ -166,25 +166,32 @@ def clear_chat_history_handler() -> Union[gr.Chatbot, None, None]:
     return gr.Chatbot.update(value=[]), None, None
 
 
+def generate_project_requirement_handler() -> gr.Textbox: 
+    project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX) 
+    return gr.Textbox.update(value=project_requirements_response)
+
+
 def generate_quotation_handler(
-    rules_prompt, 
-    llm_temperature, 
+    rules_prompt, # str  
+    llm_temperature, # float  
+    project_requirements_prompt, # str 
     progress= gr.Progress() 
 ): 
     global CURRENT_QUOTATION_VECTOR_INDEX 
     if not CURRENT_QUOTATION_VECTOR_INDEX: 
         return gr.Textbox.update(value="You must index tender specs before generate quotation") 
 
-    progress(0.4,"Generating project requirements...")
-    project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX) 
+    # progress(0.4,"Generating project requirements...")
+    # project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX) 
 
     progress(0.6,"Generating quotation...")
     response = generate_quotation(
         rules_prompt=rules_prompt, 
-        project_requirement=project_requirements_response, 
+        project_requirement=project_requirements_prompt, 
         temperature=llm_temperature
     ) 
-    return gr.Textbox.update(value=response), gr.Textbox.update(value=project_requirements_response) 
+    progress(1,"Done") 
+    return gr.Textbox.update(value=response)
 
 
 def quotation_refresh_tender_indexing_list_handler() -> gr.Dropdown: 
@@ -260,9 +267,15 @@ def app() -> gr.Blocks:
                     ) 
                     indexing_tender_specs_btn = gr.Button(value="Indexing", variant="primary")
 
-            generated_requirements_txt_box = gr.Textbox(label="Generated project requirements from documents")
-            generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT")
-            create_quotation_btn = gr.Button("Create Quotation !!!",variant="primary")
+            with gr.Row(): 
+                generated_requirements_txt_box = gr.Textbox(label="Generated project requirements from documents").style(full_width=True)
+                generate_requirements_btn = gr.Button("Generate requirements").style(full_width=False)
+
+
+            with gr.Row(): 
+                generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT").style(full_width=True)
+                create_quotation_btn = gr.Button("Create Quotation",variant="primary").style(full_width=False)
+
 
             with gr.Row(): 
                 import pandas as pd 
@@ -296,10 +309,15 @@ def app() -> gr.Blocks:
             outputs=named_tender_specs_txt_box
         )
 
+        generate_requirements_btn.click(
+            fn=generate_project_requirement_handler, 
+            outputs=generated_requirements_txt_box
+        )        
+
         create_quotation_btn.click(
             fn=generate_quotation_handler, 
-            inputs=[rules_txt_box, quotation_temperature_slider], 
-            outputs=[generated_quotation_txt_box, generated_requirements_txt_box]
+            inputs=[rules_txt_box, quotation_temperature_slider,generated_requirements_txt_box], 
+            outputs=generated_quotation_txt_box
         )
 
 
@@ -351,8 +369,7 @@ def app() -> gr.Blocks:
                 "<center>Powered by <a href='https://github.com/hwchase17/langchain'>LangChain 🦜️🔗</a></center>"
             )
 
-        css = "footer {display: none !important;} .gradio-container {min-height: 0px !important;}"
-        with gr.Tab(css=css, label="Upload & Index"):
+        with gr.Tab(label="Upload & Index"):
             file_output = gr.File()
             gpt_upload_button = gr.UploadButton(
                 "Click to upload *.pdf, *.txt files",
