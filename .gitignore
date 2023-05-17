@@ -168,3 +168,4 @@ comma_pricing_list.csv
 tender_specification_embeddings
 *.csv
 *.ipynb
+pricing_csv
