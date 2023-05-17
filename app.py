@@ -2,6 +2,7 @@ import os
 import dotenv
 import shutil
 import gradio as gr
+import pandas as pd
 from typing import Union
 from os import getenv
 from src.Features.GenerateQuotation.generate_quotation import extract_project_requirements, generate_quotation
@@ -14,9 +15,8 @@ from src.LlamaIndex.graph import build_graph_from_indices, save_graph
 from src.Agent.LLamaIndexAgent.agent import build_graph_chat_agent_executor 
 from langchain.agents import AgentExecutor
 from src.ChatWrapper.ChatWrapper import ChatWrapper
-from llama_index import GPTSimpleVectorIndex, GPTVectorStoreIndex
-from src.constants import KNOWLEDGE_GRAPH_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX, TENDER_SPECIFICATION_INDEX_FOLDER
-from src.Features.GenerateQuotation.prompt import RULES_PROMPT
+from src.constants import KNOWLEDGE_GRAPH_FOLDER, PRICING_LIST_CSV_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX, TENDER_SPECIFICATION_INDEX_FOLDER
+from src.Features.GenerateQuotation.prompt import ASK_FOR_PROJECT_REQUIREMENTS_PROMPT, RULES_PROMPT
 from src.utils.prepare_project import prepare_project_dir
 
 
@@ -156,7 +156,6 @@ def refresh_collection_list_handler() -> gr.Dropdown:
     return gr.Dropdown.update(choices=GPT_INDEX_LIST_COLLECTIONS)
 
 
-
 def clear_chat_history_handler() -> Union[gr.Chatbot, None, None]:
     global chat_gpt_index_agent  
     if chat_gpt_index_agent: 
@@ -166,35 +165,87 @@ def clear_chat_history_handler() -> Union[gr.Chatbot, None, None]:
     return gr.Chatbot.update(value=[]), None, None
 
 
-def generate_quotation_handler(
-    rules_prompt, 
-    llm_temperature, 
+
+# NOTE: quotation tab 
+
+
+def generate_project_requirement_handler(prompt: str) -> gr.Textbox: 
+    project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX, 
+                                                            custom_project_requirements_prompt=prompt) 
+    return gr.Textbox.update(value=project_requirements_response)
+
+
+def quotation_generate_btn_handler(
+    rules_prompt, # str  
+    llm_temperature, # float  
+    project_requirements_prompt, # str 
     progress= gr.Progress() 
 ): 
     global CURRENT_QUOTATION_VECTOR_INDEX 
+    global CURRENT_PRICING_TABLE_STR
     if not CURRENT_QUOTATION_VECTOR_INDEX: 
         return gr.Textbox.update(value="You must index tender specs before generate quotation") 
 
-    progress(0.4,"Generating project requirements...")
-    project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX) 
+    # progress(0.4,"Generating project requirements...")
+    # project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX) 
 
     progress(0.6,"Generating quotation...")
     response = generate_quotation(
         rules_prompt=rules_prompt, 
-        project_requirement=project_requirements_response, 
-        temperature=llm_temperature
+        project_requirement=project_requirements_prompt, 
+        temperature=llm_temperature, 
+        pricing_table=CURRENT_PRICING_TABLE_STR 
     ) 
-    return gr.Textbox.update(value=response), gr.Textbox.update(value=project_requirements_response) 
+    progress(1,"Done") 
+    return gr.Textbox.update(value=response)
 
 
 def quotation_refresh_tender_indexing_list_handler() -> gr.Dropdown: 
     global QUOTATION_INEX_COLLECTION  
+    global PRICING_CSV_LIST 
     QUOTATION_INDEX_COLLECTION = os.listdir(TENDER_SPECIFICATION_INDEX_FOLDER)
-    return gr.Dropdown.update(choices=QUOTATION_INDEX_COLLECTION)
+    PRICING_CSV_LIST = os.listdir(PRICING_LIST_CSV_FOLDER) 
+    return gr.Dropdown.update(choices=QUOTATION_INDEX_COLLECTION), gr.Dropdown.update(choices=PRICING_CSV_LIST) 
 
 
 def quotation_change_temperature_handler(temperature: float) -> gr.Slider: 
     return gr.Slider.update(value=temperature) 
+
+
+def quotation_pricing_list_upload_file_handler(files) -> list[str]: 
+    global QUOTATION_CSV_UPLOADED_FILES 
+    QUOTATION_CSV_UPLOADED_FILES = []
+
+    file_paths = [file.name for file in files]
+    # loop over all files in the source directory
+    uploads_filepath = []
+    for path in file_paths:
+        filename = get_filename(path)
+        destination_path = os.path.join(PRICING_LIST_CSV_FOLDER, filename)
+        
+        # copy file from source to destination
+        shutil.copy(path, destination_path)
+        uploads_filepath.append(destination_path)
+
+    QUOTATION_CSV_UPLOADED_FILES = uploads_filepath 
+    return uploads_filepath
+
+
+def quotation_change_csv_price_handler(index_name) -> gr.Dataframe: 
+    def _read_csv_as_str(filepath: str) -> str: 
+        with open(filepath,"r", encoding="utf-8") as f: 
+            data = f.readlines()    
+        str_data = ""
+        for row in data: 
+            str_data += row
+        return str_data
+
+    _path = os.path.join(PRICING_LIST_CSV_FOLDER,index_name)  
+    global CURRENT_PRICING_TABLE_STR 
+    CURRENT_PRICING_TABLE_STR = _read_csv_as_str(_path)
+
+    df = pd.read_csv(_path)
+    return gr.Dataframe.update(value=df) 
 
 
 def quotation_upload_file_handler(files) -> list[str]:
@@ -237,50 +288,88 @@ def app() -> gr.Blocks:
     with block:
         with gr.Tab("Generate Quotation"): 
             with gr.Row(): 
-                tender_specs_index_dropdown = gr.Dropdown(
-                        value=QUOTATION_INDEX_COLLECTION[0] if QUOTATION_INDEX_COLLECTION else None, 
-                        label="Tender Specification Embeddings to generate quotation from",
-                        choices=QUOTATION_INDEX_COLLECTION)
-                tender_index_list_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
-
-            with gr.Row(): 
                 with gr.Column(): 
-                    rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
-                                           value=RULES_PROMPT,
-                                           lines=15)
-                    quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.2, label="LLM Temperature (More creative when higher value)")
-
-                with gr.Column(): 
+                    gr.HTML("<h1>Generate Embeddings from documents</h1>")
                     named_tender_specs_txt_box = gr.Textbox(label="Name the tender specs indexing")
                     tender_file = gr.File(label="Upload tender specification files")
-                    tender_uploaded_btn = gr.UploadButton(
-                        "Click to upload *.pdf, *.txt files",
-                        file_types=[".txt", ".pdf"],
-                        file_count="multiple"
+                    with gr.Row(): 
+                        tender_uploaded_btn = gr.UploadButton(
+                            "Click to upload *.pdf, *.txt files",
+                            file_types=[".txt", ".pdf"],
+                            file_count="multiple"
+                        ) 
+                        indexing_tender_specs_btn = gr.Button(value="Indexing", variant="primary")
+                with gr.Column(): 
+                    gr.HTML("<h1>Upload CSV price list</h1>")
+                    csv_file = gr.File(label="Upload CSV pricing list") 
+                    csv_uploaded_btn = gr.UploadButton(
+                            "Click to upload *.csv files",
+                            file_types=[".csv"],
+                            file_count="multiple"
                     ) 
-                    indexing_tender_specs_btn = gr.Button(value="Indexing", variant="primary")
 
-            generated_requirements_txt_box = gr.Textbox(label="Generated project requirements from documents")
-            generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT")
-            create_quotation_btn = gr.Button("Create Quotation !!!",variant="primary")
 
+            gr.HTML("<h1>Pricing list & Tender document embeddings Selection (1)</h1>")
             with gr.Row(): 
-                import pandas as pd 
-                df = pd.read_csv("./comma_pricing_list.csv")
-                gr.Dataframe(df, label="Default pricing list table (for comparision)")
+                csv_list_dropdown = gr.Dropdown(
+                    value=None,    
+                    choices=PRICING_CSV_LIST, 
+                    label="Select pricing list" 
+                )
+                tender_specs_index_dropdown = gr.Dropdown(
+                    value=QUOTATION_INDEX_COLLECTION[0] if QUOTATION_INDEX_COLLECTION else None, 
+                    label="Tender Specification Embeddings to generate quotation from",
+                    choices=QUOTATION_INDEX_COLLECTION)
+                refresh_collections_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
+
+
+            gr.HTML("<h1>Generate project requirements (2)</h1>")
+            with gr.Row(): 
+                question_prompt_txt_box = gr.Textbox(label="Question prompt to generate requirements", 
+                                                     value=ASK_FOR_PROJECT_REQUIREMENTS_PROMPT)
+            with gr.Row(): 
+                generated_requirements_txt_box = gr.Textbox(label="Generated project requirements from documents").style(full_width=True)
+                generate_requirements_btn = gr.Button("Generate requirements").style(full_width=False)
+
+
+            gr.HTML("<h1>Generate Quotation (3)</h1>")
+            rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
+                        value=RULES_PROMPT,
+                        lines=7)
+            quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.2, label="LLM Temperature (More creative when higher value)")
+            with gr.Row(): 
+                generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT").style(full_width=True)
+                create_quotation_btn = gr.Button("Create Quotation",variant="primary").style(full_width=False)
+
+
+            # NOTE: display dataframe 
+            with gr.Row(): 
+                dataframe_viewer = gr.Dataframe(None, label="Default pricing list table (for comparision)")
 
 
         # event handler 
+        csv_list_dropdown.change(
+            fn=quotation_change_csv_price_handler, 
+            inputs=csv_list_dropdown, 
+            outputs=dataframe_viewer                
+        )
+
         tender_specs_index_dropdown.change(
             fn=quotation_change_index_handler, 
             inputs=tender_specs_index_dropdown, 
             outputs=None
         )
 
-        tender_index_list_refresh_btn.click(
+        refresh_collections_btn.click(
             fn=quotation_refresh_tender_indexing_list_handler, 
             inputs=None, 
-            outputs=tender_specs_index_dropdown
+            outputs=[tender_specs_index_dropdown, csv_list_dropdown]
+        )
+
+        csv_uploaded_btn.upload(
+            fn=quotation_pricing_list_upload_file_handler, 
+            inputs=csv_uploaded_btn, 
+            outputs=csv_file
         )
 
         tender_uploaded_btn.upload(
@@ -296,10 +385,16 @@ def app() -> gr.Blocks:
             outputs=named_tender_specs_txt_box
         )
 
+        generate_requirements_btn.click(
+            fn=generate_project_requirement_handler, 
+            inputs=question_prompt_txt_box, 
+            outputs=generated_requirements_txt_box
+        )        
+
         create_quotation_btn.click(
-            fn=generate_quotation_handler, 
-            inputs=[rules_txt_box, quotation_temperature_slider], 
-            outputs=[generated_quotation_txt_box, generated_requirements_txt_box]
+            fn=quotation_generate_btn_handler, 
+            inputs=[rules_txt_box, quotation_temperature_slider,generated_requirements_txt_box], 
+            outputs=generated_quotation_txt_box
         )
 
 
@@ -351,8 +446,7 @@ def app() -> gr.Blocks:
                 "<center>Powered by <a href='https://github.com/hwchase17/langchain'>LangChain 🦜️🔗</a></center>"
             )
 
-        css = "footer {display: none !important;} .gradio-container {min-height: 0px !important;}"
-        with gr.Tab(css=css, label="Upload & Index"):
+        with gr.Tab(label="Upload & Index"):
             file_output = gr.File()
             gpt_upload_button = gr.UploadButton(
                 "Click to upload *.pdf, *.txt files",
@@ -478,6 +572,9 @@ if __name__ == "__main__":
     if QUOTATION_INDEX_COLLECTION: 
        CURRENT_QUOTATION_VECTOR_INDEX = load_tender_index(QUOTATION_INDEX_COLLECTION[0]) 
 
+    QUOTATION_CSV_UPLOADED_FILES: list[str] = []
+    PRICING_CSV_LIST: list[str] = os.listdir(PRICING_LIST_CSV_FOLDER) 
+    CURRENT_PRICING_TABLE_STR: str = ""
 
     block = app()
     block.queue(concurrency_count=n_concurrency).launch(
