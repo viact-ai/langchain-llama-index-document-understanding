@@ -20,9 +20,22 @@ def generate_quotation(
     project_requirement: str, 
     temperature: float = 0.0, 
     pricing_table: str = PRICING_TABLE_PROMPT, 
+    format_instruction: str = FORMAT_INSTRUCTION 
 ) -> str: 
-    prompt = pricing_table + project_requirement + rules_prompt + FORMAT_INSTRUCTION
-    chat = ChatOpenAI(temperature=temperature)
+    prompt = f"""
+I have the following pricing table: 
+{pricing_table}
+
+My construction REQUIRED:
+{project_requirement}
+{rules_prompt}
+{format_instruction}
+"""
+
+    chat = ChatOpenAI(
+        temperature=temperature, 
+        model_name="gpt-3.5-turbo"
+    )
     response = chat([
         SystemMessage(content=SYSTEM_PROMPT), 
         HumanMessage(content=prompt)

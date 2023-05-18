@@ -44,14 +44,14 @@ But the matched product can be modified to FOLLOW THESE RULES:
 
 ############
 
-FORMAT_INSTRUCTION: str = """The returneded result must follow this CSV format: 
+FORMAT_INSTRUCTION: str = """The returned result must follow this CSV format: 
 ``` 
-product\tproduct_id\tdescriptions\tprice\tpricing_unit\tcategory 
+product_id\tproduct\tdescriptions\tprice\tpricing_unit\tcategory 
 ```
 For example: 
 ``` 
-product\tproduct_id\tdescriptions\tprice\tpricing_unit\tcategory 
-Customized AI engine\tD011\tUsage of customized AI detection module (after Item 10.0 activated)\t$1,000.00\t/month\tDetection Modules
+product_id\tproduct\tdescriptions\tprice\tpricing_unit\tcategory 
+D011\tCustomized AI engine\tUsage of customized AI detection module (after Item 10.0 activated)\t$1,000.00\t/month\tDetection Modules
 ```"""
 
 ############
