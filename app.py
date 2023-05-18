@@ -7,6 +7,7 @@ from typing import Union
 from os import getenv
 from src.Features.GenerateQuotation.generate_quotation import extract_project_requirements, generate_quotation
 from src.Features.GenerateQuotation.index import load_tender_index, save_tender_index
+from src.utils.df_utils import read_csv_as_str
 
 from src.utils.logger import get_logger
 from src.utils.file_helper import get_filename 
@@ -16,7 +17,7 @@ from src.Agent.LLamaIndexAgent.agent import build_graph_chat_agent_executor
 from langchain.agents import AgentExecutor
 from src.ChatWrapper.ChatWrapper import ChatWrapper
 from src.constants import KNOWLEDGE_GRAPH_FOLDER, PRICING_LIST_CSV_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX, TENDER_SPECIFICATION_INDEX_FOLDER
-from src.Features.GenerateQuotation.prompt import ASK_FOR_PROJECT_REQUIREMENTS_PROMPT, RULES_PROMPT
+from src.Features.GenerateQuotation.prompt import ASK_FOR_PROJECT_REQUIREMENTS_PROMPT, FORMAT_INSTRUCTION, RULES_PROMPT
 from src.utils.prepare_project import prepare_project_dir
 
 
@@ -179,6 +180,7 @@ def quotation_generate_btn_handler(
     rules_prompt, # str  
     llm_temperature, # float  
     project_requirements_prompt, # str 
+    format_instruction_prompt, # str
     progress= gr.Progress() 
 ): 
     global CURRENT_QUOTATION_VECTOR_INDEX 
@@ -194,7 +196,8 @@ def quotation_generate_btn_handler(
         rules_prompt=rules_prompt, 
         project_requirement=project_requirements_prompt, 
         temperature=llm_temperature, 
-        pricing_table=CURRENT_PRICING_TABLE_STR 
+        pricing_table=CURRENT_PRICING_TABLE_STR, 
+        format_instruction=format_instruction_prompt 
     ) 
     progress(1,"Done") 
     return gr.Textbox.update(value=response)
@@ -232,17 +235,9 @@ def quotation_pricing_list_upload_file_handler(files) -> list[str]:
 
 
 def quotation_change_csv_price_handler(index_name) -> gr.Dataframe: 
-    def _read_csv_as_str(filepath: str) -> str: 
-        with open(filepath,"r", encoding="utf-8") as f: 
-            data = f.readlines()    
-        str_data = ""
-        for row in data: 
-            str_data += row
-        return str_data
-
     _path = os.path.join(PRICING_LIST_CSV_FOLDER,index_name)  
     global CURRENT_PRICING_TABLE_STR 
-    CURRENT_PRICING_TABLE_STR = _read_csv_as_str(_path)
+    CURRENT_PRICING_TABLE_STR = read_csv_as_str(_path)
 
     df = pd.read_csv(_path)
     return gr.Dataframe.update(value=df) 
@@ -312,7 +307,7 @@ def app() -> gr.Blocks:
             gr.HTML("<h1>Pricing list & Tender document embeddings Selection (1)</h1>")
             with gr.Row(): 
                 csv_list_dropdown = gr.Dropdown(
-                    value=None,    
+                    value=PRICING_CSV_LIST[0] if PRICING_CSV_LIST else None,    
                     choices=PRICING_CSV_LIST, 
                     label="Select pricing list" 
                 )
@@ -333,9 +328,16 @@ def app() -> gr.Blocks:
 
 
             gr.HTML("<h1>Generate Quotation (3)</h1>")
-            rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
-                        value=RULES_PROMPT,
-                        lines=7)
+            with gr.Row(): 
+                with gr.Column(): 
+                    rules_txt_box = gr.Textbox(label="Rules prompt when generate quotation",
+                                value=RULES_PROMPT,
+                                lines=7)
+                with gr.Column(): 
+                    format_instr_txt_box = gr.Textbox(label="Format Instruction on what to generate", 
+                                                    value=FORMAT_INSTRUCTION,
+                                                    lines=7)
+
             quotation_temperature_slider = gr.Slider(0, 2, step=0.2, value=0.2, label="LLM Temperature (More creative when higher value)")
             with gr.Row(): 
                 generated_quotation_txt_box = gr.Textbox(label="Generated quotation from GPT").style(full_width=True)
@@ -344,7 +346,13 @@ def app() -> gr.Blocks:
 
             # NOTE: display dataframe 
             with gr.Row(): 
-                dataframe_viewer = gr.Dataframe(None, label="Default pricing list table (for comparision)")
+                df = None
+                if PRICING_CSV_LIST: 
+                    _path = os.path.join(PRICING_LIST_CSV_FOLDER,PRICING_CSV_LIST[0])  
+                    df = _path 
+                    global CURRENT_PRICING_TABLE_STR 
+                    CURRENT_PRICING_TABLE_STR = read_csv_as_str(_path)
+                dataframe_viewer = gr.Dataframe(df, label="Default pricing list table (for comparision)")
 
 
         # event handler 
@@ -393,7 +401,7 @@ def app() -> gr.Blocks:
 
         create_quotation_btn.click(
             fn=quotation_generate_btn_handler, 
-            inputs=[rules_txt_box, quotation_temperature_slider,generated_requirements_txt_box], 
+            inputs=[rules_txt_box, quotation_temperature_slider,generated_requirements_txt_box, format_instr_txt_box], 
             outputs=generated_quotation_txt_box
         )
 
