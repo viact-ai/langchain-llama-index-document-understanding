@@ -406,112 +406,112 @@ def app() -> gr.Blocks:
         )
 
 
-        with gr.Tab("Chat GPT_Index"):
-            with gr.Row():
-                gr.Markdown("<h3><center>GPTIndex + LangChain Demo</center></h3>")
+        # with gr.Tab("Chat GPT_Index"):
+        #     with gr.Row():
+        #         gr.Markdown("<h3><center>GPTIndex + LangChain Demo</center></h3>")
 
-            with gr.Row():
-                llama_index_dropdown_btn = gr.Dropdown(
-                    value=GPT_INDEX_LIST_COLLECTIONS[0] if GPT_INDEX_LIST_COLLECTIONS else None, 
-                    label="Index/Collection to chat with",
-                    choices=GPT_INDEX_LIST_COLLECTIONS)
+        #     with gr.Row():
+        #         llama_index_dropdown_btn = gr.Dropdown(
+        #             value=GPT_INDEX_LIST_COLLECTIONS[0] if GPT_INDEX_LIST_COLLECTIONS else None, 
+        #             label="Index/Collection to chat with",
+        #             choices=GPT_INDEX_LIST_COLLECTIONS)
 
-                llama_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
+        #         llama_refresh_btn = gr.Button("⟳ Refresh Collections").style(full_width=False)
 
-            temperature_llm_slider = gr.Slider(0, 2, step=0.2, value=0.1, label="Temperature")
-            temperature_llm_slider.change(
-                change_temperature_gpt_index_llm_handler,
-                inputs=temperature_llm_slider 
-            )
+        #     temperature_llm_slider = gr.Slider(0, 2, step=0.2, value=0.1, label="Temperature")
+        #     temperature_llm_slider.change(
+        #         change_temperature_gpt_index_llm_handler,
+        #         inputs=temperature_llm_slider 
+        #     )
 
-            llama_chatbot = gr.Chatbot()
-            with gr.Row():
-                llama_message_txt_box = gr.Textbox(
-                    label="What's your question?",
-                    placeholder="What's the answer to life, the universe, and everything?",
-                    lines=1,
-                ).style(full_width=True)
+        #     llama_chatbot = gr.Chatbot()
+        #     with gr.Row():
+        #         llama_message_txt_box = gr.Textbox(
+        #             label="What's your question?",
+        #             placeholder="What's the answer to life, the universe, and everything?",
+        #             lines=1,
+        #         ).style(full_width=True)
 
-                llama_submit_chat_msg_btn = gr.Button(
-                    value="Send", 
-                    variant="primary").style(full_width=False)
+        #         llama_submit_chat_msg_btn = gr.Button(
+        #             value="Send", 
+        #             variant="primary").style(full_width=False)
 
-                llama_clear_chat_history_btn = gr.Button(
-                    value="Clear chat history (will clear chatbot memory)",
-                    variant="stop").style(full_width=False)
+        #         llama_clear_chat_history_btn = gr.Button(
+        #             value="Clear chat history (will clear chatbot memory)",
+        #             variant="stop").style(full_width=False)
 
-            gr.Examples(
-                examples=[
-                    "Hi! How's it going?",
-                    "What should I do tonight?",
-                    "Whats 2 + 2?",
-                ],
-                inputs=llama_message_txt_box,
-            )
+        #     gr.Examples(
+        #         examples=[
+        #             "Hi! How's it going?",
+        #             "What should I do tonight?",
+        #             "Whats 2 + 2?",
+        #         ],
+        #         inputs=llama_message_txt_box,
+        #     )
 
-            gr.HTML("Demo application of a LangChain chain.")
-            gr.HTML(
-                "<center>Powered by <a href='https://github.com/hwchase17/langchain'>LangChain 🦜️🔗</a></center>"
-            )
+        #     gr.HTML("Demo application of a LangChain chain.")
+        #     gr.HTML(
+        #         "<center>Powered by <a href='https://github.com/hwchase17/langchain'>LangChain 🦜️🔗</a></center>"
+        #     )
 
-        with gr.Tab(label="Upload & Index"):
-            file_output = gr.File()
-            gpt_upload_button = gr.UploadButton(
-                "Click to upload *.pdf, *.txt files",
-                file_types=[".txt", ".pdf"],
-                file_count="multiple"
-            )
-            gpt_upload_button.upload(upload_file_handler, gpt_upload_button,
-                                 file_output, api_name="upload_files")
-            with gr.Row():
-                gpt_chunk_slider = gr.Slider(
-                    0, 3500, step=250, value=1000, label="Document Chunk Size")
+        # with gr.Tab(label="Upload & Index"):
+        #     file_output = gr.File()
+        #     gpt_upload_button = gr.UploadButton(
+        #         "Click to upload *.pdf, *.txt files",
+        #         file_types=[".txt", ".pdf"],
+        #         file_count="multiple"
+        #     )
+        #     gpt_upload_button.upload(upload_file_handler, gpt_upload_button,
+        #                          file_output, api_name="upload_files")
+        #     with gr.Row():
+        #         gpt_chunk_slider = gr.Slider(
+        #             0, 3500, step=250, value=1000, label="Document Chunk Size")
 
-                gpt_overlap_chunk_slider = gr.Slider(
-                    0, 1500, step=20, value=40, label="Overlap Document Chunk Size")
+        #         gpt_overlap_chunk_slider = gr.Slider(
+        #             0, 1500, step=20, value=40, label="Overlap Document Chunk Size")
 
-            gpt_index_name = gr.Textbox(
-                label="Collection/Index Name",
-                placeholder="What's the name for this index? Eg: Document_ABC",
-                lines=1)
-            gpt_index_doc_btn = gr.Button(
-                value="Index!", variant="secondary").style(full_width=False)
+        #     gpt_index_name = gr.Textbox(
+        #         label="Collection/Index Name",
+        #         placeholder="What's the name for this index? Eg: Document_ABC",
+        #         lines=1)
+        #     gpt_index_doc_btn = gr.Button(
+        #         value="Index!", variant="secondary").style(full_width=False)
 
-            gpt_status_text = gr.Textbox(label="Indexing Status")
+        #     gpt_status_text = gr.Textbox(label="Indexing Status")
 
-            gpt_index_doc_btn.click(multi_pdf_documents_indexing_handler,
-                                inputs=[gpt_chunk_slider,
-                                        gpt_overlap_chunk_slider, gpt_index_name],
-                                outputs=gpt_status_text)
+        #     gpt_index_doc_btn.click(multi_pdf_documents_indexing_handler,
+        #                         inputs=[gpt_chunk_slider,
+        #                                 gpt_overlap_chunk_slider, gpt_index_name],
+        #                         outputs=gpt_status_text)
 
         # NOTE: Llama Index
-        llama_state = gr.State()
-        llama_agent_state = gr.State()
+        # llama_state = gr.State()
+        # llama_agent_state = gr.State()
 
-        llama_index_dropdown_btn.change(change_agent_handler,
-                                  inputs=llama_index_dropdown_btn,
-                                  outputs=[llama_chatbot, llama_state, llama_agent_state, temperature_llm_slider])
-
-
-        llama_submit_chat_msg_btn.click(chat_with_agent_handler,
-                                      inputs=[llama_message_txt_box,
-                                              llama_state, llama_agent_state],
-                                      outputs=[llama_chatbot, llama_state])
-
-        llama_message_txt_box.submit(chat_with_agent_handler,
-                                   inputs=[llama_message_txt_box,
-                                           llama_state, llama_agent_state],
-                                   outputs=[llama_chatbot, llama_state],
-                                   api_name="chats_gpt_index")
-
-        llama_refresh_btn.click(fn=refresh_collection_list_handler,
-                          outputs=llama_index_dropdown_btn)
+        # llama_index_dropdown_btn.change(change_agent_handler,
+        #                           inputs=llama_index_dropdown_btn,
+        #                           outputs=[llama_chatbot, llama_state, llama_agent_state, temperature_llm_slider])
 
 
-        llama_clear_chat_history_btn.click(
-            clear_chat_history_handler,
-            outputs=[llama_chatbot, llama_state, llama_agent_state]
-        )
+        # llama_submit_chat_msg_btn.click(chat_with_agent_handler,
+        #                               inputs=[llama_message_txt_box,
+        #                                       llama_state, llama_agent_state],
+        #                               outputs=[llama_chatbot, llama_state])
+
+        # llama_message_txt_box.submit(chat_with_agent_handler,
+        #                            inputs=[llama_message_txt_box,
+        #                                    llama_state, llama_agent_state],
+        #                            outputs=[llama_chatbot, llama_state],
+        #                            api_name="chats_gpt_index")
+
+        # llama_refresh_btn.click(fn=refresh_collection_list_handler,
+        #                   outputs=llama_index_dropdown_btn)
+
+
+        # llama_clear_chat_history_btn.click(
+        #     clear_chat_history_handler,
+        #     outputs=[llama_chatbot, llama_state, llama_agent_state]
+        # )
 
     return block
 
@@ -586,7 +586,10 @@ if __name__ == "__main__":
 
     block = app()
     block.queue(concurrency_count=n_concurrency).launch(
-        auth=(username, password),
+        auth=[
+            (username, password), 
+            ("abc","123")
+        ],
         debug=debug,
         server_port=server_port,
         server_name=server_name, 
