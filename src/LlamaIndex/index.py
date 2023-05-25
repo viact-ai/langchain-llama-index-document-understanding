@@ -1,4 +1,5 @@
 import os
+import asyncio 
 
 from src.constants import GPT_INDEX_LOCAL_PATH
 
@@ -41,6 +42,24 @@ def get_embeddings_from_pdf(
     )
     nodes = parser.get_nodes_from_documents(documents)
     index = GPTSimpleVectorIndex(nodes)
+    return index
+
+
+async def aget_embeddings_from_pdf(
+        filepath: str,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 40
+) -> GPTSimpleVectorIndex:
+    parser = SimpleNodeParser()
+    documents = _convert_pdf_to_documents(
+        filepath=filepath,
+        chunk_overlap=chunk_overlap,
+        chunk_size=chunk_size
+    )
+    nodes = parser.get_nodes_from_documents(documents)
+    index = await asyncio.to_thread( 
+        GPTSimpleVectorIndex, nodes
+    )
     return index
 
 
