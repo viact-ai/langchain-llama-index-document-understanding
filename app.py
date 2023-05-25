@@ -5,13 +5,13 @@ import gradio as gr
 import pandas as pd
 from typing import Union
 from os import getenv
-from src.Features.GenerateQuotation.generate_quotation import extract_project_requirements, generate_quotation
+from src.Features.GenerateQuotation.generate_quotation import aextract_project_requirements, agenerate_quotation, extract_project_requirements, generate_quotation
 from src.Features.GenerateQuotation.index import load_tender_index, save_tender_index
 from src.utils.df_utils import read_csv_as_str
 
 from src.utils.logger import get_logger
 from src.utils.file_helper import get_filename 
-from src.LlamaIndex.index import save_index, get_embeddings_from_pdf
+from src.LlamaIndex.index import aget_embeddings_from_pdf, save_index, get_embeddings_from_pdf
 from src.LlamaIndex.graph import build_graph_from_indices, save_graph
 from src.Agent.LLamaIndexAgent.agent import build_graph_chat_agent_executor 
 from langchain.agents import AgentExecutor
@@ -170,13 +170,13 @@ def clear_chat_history_handler() -> Union[gr.Chatbot, None, None]:
 # NOTE: quotation tab 
 
 
-def generate_project_requirement_handler(prompt: str) -> gr.Textbox: 
-    project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX, 
+async def generate_project_requirement_handler(prompt: str) -> gr.Textbox: 
+    project_requirements_response = await aextract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX, 
                                                             custom_project_requirements_prompt=prompt) 
     return gr.Textbox.update(value=project_requirements_response)
 
 
-def quotation_generate_btn_handler(
+async def quotation_generate_btn_handler(
     rules_prompt, # str  
     llm_temperature, # float  
     project_requirements_prompt, # str 
@@ -192,7 +192,7 @@ def quotation_generate_btn_handler(
     # project_requirements_response = extract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX) 
 
     progress(0.6,"Generating quotation...")
-    response = generate_quotation(
+    response = await agenerate_quotation(
         rules_prompt=rules_prompt, 
         project_requirement=project_requirements_prompt, 
         temperature=llm_temperature, 
@@ -262,11 +262,11 @@ def quotation_upload_file_handler(files) -> list[str]:
     return uploads_filepath
 
 
-def quotation_tender_pdf_indexing_handler(
+async def quotation_tender_pdf_indexing_handler(
     index_name: str
 ) -> str: 
     global QUOTATION_UPLOADED_FILES
-    index = get_embeddings_from_pdf(QUOTATION_UPLOADED_FILES[0])
+    index = await aget_embeddings_from_pdf(QUOTATION_UPLOADED_FILES[0])
     save_tender_index(index=index, saved_path=index_name)
     return "!!! DONE !!!"  
 
@@ -284,12 +284,12 @@ def app() -> gr.Blocks:
         with gr.Tab("Generate Quotation"): 
             with gr.Row(): 
                 with gr.Column(): 
-                    gr.HTML("<h1>Generate Embeddings from documents</h1>")
+                    gr.HTML("<h1>Generate embeddings from single document</h1>")
                     named_tender_specs_txt_box = gr.Textbox(label="Name the tender specs indexing")
                     tender_file = gr.File(label="Upload tender specification files")
                     with gr.Row(): 
                         tender_uploaded_btn = gr.UploadButton(
-                            "Click to upload *.pdf, *.txt files",
+                            "Click to upload *.pdf, *.txt file",
                             file_types=[".txt", ".pdf"],
                             file_count="multiple"
                         ) 
@@ -298,7 +298,7 @@ def app() -> gr.Blocks:
                     gr.HTML("<h1>Upload CSV price list</h1>")
                     csv_file = gr.File(label="Upload CSV pricing list") 
                     csv_uploaded_btn = gr.UploadButton(
-                            "Click to upload *.csv files",
+                            "Click to upload *.csv file",
                             file_types=[".csv"],
                             file_count="multiple"
                     ) 
@@ -526,7 +526,7 @@ if __name__ == "__main__":
                         default="admin", help="Authentication username")
     parser.add_argument("--password", dest="password",
                         default="1234@abcezIJK1", help="Authentication password")
-    parser.add_argument("--concurrency", dest="concurrency", default=1,
+    parser.add_argument("--concurrency", dest="concurrency", default=4,
                         type=int, help="Number of concurrent blocks to process")
     parser.add_argument("--debug", dest="debug",
                         action="store_true", help="Enable debug mode")
@@ -588,7 +588,13 @@ if __name__ == "__main__":
     block.queue(concurrency_count=n_concurrency).launch(
         auth=[
             (username, password), 
-            ("abc","123")
+            ("abc","123"), 
+            ("user1","123"), 
+            ("user2","123"), 
+            ("gary","123456"), 
+            ("vudx","123456"), 
+            ("kyle","123456"), 
+            
         ],
         debug=debug,
         server_port=server_port,
