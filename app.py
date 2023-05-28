@@ -56,6 +56,7 @@ def upload_file_handler(files) -> list[str]:
         uploads_filepath.append(destination_path)
 
     UPLOADED_FILES = uploads_filepath
+    logger.info(f"New uploaded files: {UPLOADED_FILES}")
     return uploads_filepath
 
 def multi_pdf_documents_indexing_handler(
@@ -137,6 +138,7 @@ def change_agent_handler(index_name: str, chatbot: gr.Chatbot) -> Union[gr.Chatb
     chat_gpt_index_agent = None
 
     agent_executor = load_agent(index_name=index_name)
+    logger.info(f"Change agent to use index {index_name}")
     chat_gpt_index_agent = ChatWrapper(agent_executor)
 
     return gr.Chatbot.update(value=[]), None, None, gr.Slider.update(value=agent_executor.agent.llm_chain.llm.temperature)
@@ -154,6 +156,7 @@ def chat_with_agent_handler(message_txt_box, state, agent_state) -> Union[gr.Cha
 def refresh_collection_list_handler() -> gr.Dropdown:
     global GPT_INDEX_LIST_COLLECTIONS  
     GPT_INDEX_LIST_COLLECTIONS = os.listdir(KNOWLEDGE_GRAPH_FOLDER)
+    logger.info(f"Refresh list collection, new list {GPT_INDEX_LIST_COLLECTIONS}")
     return gr.Dropdown.update(choices=GPT_INDEX_LIST_COLLECTIONS)
 
 
@@ -231,6 +234,7 @@ def quotation_pricing_list_upload_file_handler(files) -> list[str]:
         uploads_filepath.append(destination_path)
 
     QUOTATION_CSV_UPLOADED_FILES = uploads_filepath 
+    logger.info(f"Quotation new uploaded CSV files: {QUOTATION_UPLOADED_FILES}")
     return uploads_filepath
 
 
@@ -240,6 +244,7 @@ def quotation_change_csv_price_handler(index_name) -> gr.Dataframe:
     CURRENT_PRICING_TABLE_STR = read_csv_as_str(_path)
 
     df = pd.read_csv(_path)
+    logger.info(f"Change to new pricing list: {_path}")
     return gr.Dataframe.update(value=df) 
 
 
@@ -259,6 +264,7 @@ def quotation_upload_file_handler(files) -> list[str]:
         uploads_filepath.append(destination_path)
 
     QUOTATION_UPLOADED_FILES = uploads_filepath 
+    logger.info(f"Quotation new uploaded files: {QUOTATION_UPLOADED_FILES}")
     return uploads_filepath
 
 

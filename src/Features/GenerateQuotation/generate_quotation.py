@@ -2,6 +2,10 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage, BaseMessage
 from llama_index import GPTSimpleVectorIndex
 from src.Features.GenerateQuotation.prompt import PRICING_TABLE_PROMPT, SYSTEM_PROMPT, RULES_PROMPT, FORMAT_INSTRUCTION, ASK_FOR_PROJECT_REQUIREMENTS_PROMPT
+from src.utils.logger import get_logger
+
+
+logger = get_logger()
 
 
 def extract_project_requirements(
@@ -40,7 +44,11 @@ My construction REQUIRED:
         SystemMessage(content=SYSTEM_PROMPT), 
         HumanMessage(content=prompt)
     ])
-    return response.content 
+    response = response.content
+
+    logger.info(f"Requested prompt: {prompt}")
+    logger.info(f"Response result: {response}")
+    return response
 
 
 
@@ -53,7 +61,10 @@ async def aextract_project_requirements(
     if not custom_project_requirements_prompt: 
         custom_project_requirements_prompt = ASK_FOR_PROJECT_REQUIREMENTS_PROMPT
     response = await index.aquery(custom_project_requirements_prompt)
-    return response.response 
+    response = response.response  
+    logger.info(f"Extract requirements prompt: {custom_project_requirements_prompt}")
+    logger.info(f"Extract requirements result: {response}")
+    return response 
 
 
 async def agenerate_quotation(
@@ -81,5 +92,8 @@ My construction REQUIRED:
         HumanMessage(content=prompt)
     ]])
     response = response.generations[0][0].text 
+
+    logger.info(f"Requested prompt: {prompt}")
+    logger.info(f"Response result: {response}")
     return response
 
