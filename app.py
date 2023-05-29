@@ -6,17 +6,17 @@ import pandas as pd
 from typing import Union
 from os import getenv
 from src.Features.GenerateQuotation.generate_quotation import aextract_project_requirements, agenerate_quotation, extract_project_requirements, generate_quotation
-from src.Features.GenerateQuotation.index import load_tender_index, save_tender_index
+from src.Features.GenerateQuotation.index import load_tender_graph, load_tender_index, save_tender_graph, save_tender_index
 from src.utils.df_utils import read_csv_as_str
 
 from src.utils.logger import get_logger
-from src.utils.file_helper import get_filename 
+from src.utils.file_helper import get_filename, validate_file_extension 
 from src.LlamaIndex.index import aget_embeddings_from_pdf, save_index, get_embeddings_from_pdf
 from src.LlamaIndex.graph import build_graph_from_indices, save_graph
 from src.Agent.LLamaIndexAgent.agent import build_graph_chat_agent_executor 
 from langchain.agents import AgentExecutor
 from src.ChatWrapper.ChatWrapper import ChatWrapper
-from src.constants import KNOWLEDGE_GRAPH_FOLDER, PRICING_LIST_CSV_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX, TENDER_SPECIFICATION_INDEX_FOLDER
+from src.constants import KNOWLEDGE_GRAPH_FOLDER, PRICING_LIST_CSV_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX, TENDER_GRAPH_FOLDER, TENDER_SPECIFICATION_INDEX_FOLDER
 from src.Features.GenerateQuotation.prompt import ASK_FOR_PROJECT_REQUIREMENTS_PROMPT, FORMAT_INSTRUCTION, RULES_PROMPT
 from src.utils.prepare_project import prepare_project_dir
 
@@ -59,28 +59,32 @@ def upload_file_handler(files) -> list[str]:
     logger.info(f"New uploaded files: {UPLOADED_FILES}")
     return uploads_filepath
 
-def multi_pdf_documents_indexing_handler(
-    chunk_size: int,
-    overlap_chunk: int,
+
+async def quotation_multi_pdf_documents_indexing_handler(
+    # chunk_size: int,
+    # overlap_chunk: int,
     graph_name: str,
+    allowed_file_ext: list[str] = ["pdf"], 
     progress=gr.Progress()
 ) -> str: 
-    global UPLOADED_FILES  
+    global QUOTATION_UPLOADED_FILES
     logger.info(
-        f"{chunk_size},{overlap_chunk}, {UPLOADED_FILES}, {graph_name}")
+        f"{QUOTATION_UPLOADED_FILES}, {graph_name}")
     try: 
         # indexing multiple documents 
         all_indices = []
         index_summaries = []
-        for idx, file in enumerate(UPLOADED_FILES): 
+        for idx, file in enumerate(QUOTATION_UPLOADED_FILES): 
             progress(0.1, "Verify Documents....")
-            filename = get_filename(UPLOADED_FILES[idx])
+            filename = get_filename(QUOTATION_UPLOADED_FILES[idx])
+            if not validate_file_extension(filename, allowed_file_ext):  
+                return ValueError(f"File {filename} is not allowed, only allow {allowed_file_ext}")
             index_name = os.path.splitext(filename)[0]
 
             progress(0.3, "Analyzing & Indexing Documents....")
-            index = get_embeddings_from_pdf(
-                filepath=UPLOADED_FILES[idx])
-            summary = index.query(SUMMARY_PROMPT_FOR_EACH_INDEX)                    
+            index = await aget_embeddings_from_pdf(
+                filepath=QUOTATION_UPLOADED_FILES[idx])
+            summary = await index.aquery(SUMMARY_PROMPT_FOR_EACH_INDEX)                    
             summary = summary.response # NOTE: convert response to str
             all_indices.append(index)
             index_summaries.append(summary)
@@ -92,11 +96,12 @@ def multi_pdf_documents_indexing_handler(
         # construct graph from indices
         progress(0.3, "Constructing knowledge from from multiple indices...")
         graph = build_graph_from_indices(all_indices=all_indices, index_summaries=index_summaries) 
-        save_graph(graph, graph_name) 
+        save_tender_graph(graph, graph_name) 
         return "!!! DONE !!!"
     except ValueError as e: 
         logger.info(f"{e}")
         return f"!!! Can't extract information from this {filename} document!!!"
+
 
 # NOTE: un-used
 # def single_pdf_documents_indexing_handler(
@@ -171,8 +176,6 @@ def clear_chat_history_handler() -> Union[gr.Chatbot, None, None]:
 
 
 # NOTE: quotation tab 
-
-
 async def generate_project_requirement_handler(prompt: str) -> gr.Textbox: 
     project_requirements_response = await aextract_project_requirements(index=CURRENT_QUOTATION_VECTOR_INDEX, 
                                                             custom_project_requirements_prompt=prompt) 
@@ -209,7 +212,7 @@ async def quotation_generate_btn_handler(
 def quotation_refresh_tender_indexing_list_handler() -> gr.Dropdown: 
     global QUOTATION_INEX_COLLECTION  
     global PRICING_CSV_LIST 
-    QUOTATION_INDEX_COLLECTION = os.listdir(TENDER_SPECIFICATION_INDEX_FOLDER)
+    QUOTATION_INDEX_COLLECTION = os.listdir(TENDER_GRAPH_FOLDER)
     PRICING_CSV_LIST = os.listdir(PRICING_LIST_CSV_FOLDER) 
     return gr.Dropdown.update(choices=QUOTATION_INDEX_COLLECTION), gr.Dropdown.update(choices=PRICING_CSV_LIST) 
 
@@ -279,7 +282,7 @@ async def quotation_tender_pdf_indexing_handler(
 
 def quotation_change_index_handler(index_name) -> None: 
     global CURRENT_QUOTATION_VECTOR_INDEX 
-    CURRENT_QUOTATION_VECTOR_INDEX = load_tender_index(index_name) 
+    CURRENT_QUOTATION_VECTOR_INDEX = load_tender_graph(index_name) 
 
 
 
@@ -394,7 +397,7 @@ def app() -> gr.Blocks:
         )
 
         indexing_tender_specs_btn.click(
-            fn=quotation_tender_pdf_indexing_handler, 
+            fn=quotation_multi_pdf_documents_indexing_handler, 
             inputs=named_tender_specs_txt_box, 
             outputs=named_tender_specs_txt_box
         )
@@ -580,11 +583,11 @@ if __name__ == "__main__":
 
     # NOTE: quotation features 
     QUOTATION_UPLOADED_FILES = []
-    QUOTATION_INDEX_COLLECTION = os.listdir(TENDER_SPECIFICATION_INDEX_FOLDER) 
+    QUOTATION_INDEX_COLLECTION = os.listdir(TENDER_GRAPH_FOLDER) 
     CURRENT_QUOTATION_VECTOR_INDEX = None 
 
     if QUOTATION_INDEX_COLLECTION: 
-       CURRENT_QUOTATION_VECTOR_INDEX = load_tender_index(QUOTATION_INDEX_COLLECTION[0]) 
+       CURRENT_QUOTATION_VECTOR_INDEX = load_tender_graph(QUOTATION_INDEX_COLLECTION[0]) 
 
     QUOTATION_CSV_UPLOADED_FILES: list[str] = []
     PRICING_CSV_LIST: list[str] = os.listdir(PRICING_LIST_CSV_FOLDER) 
