@@ -8,6 +8,8 @@ AGENT_VEROBSE: bool = True
 
 TENDER_SPECIFICATION_INDEX_FOLDER: str = "./tender_specification_embeddings" 
 
+TENDER_GRAPH_FOLDER: str = "./tender_graph"
+
 PRICING_LIST_CSV_FOLDER: str = "./pricing_csv"
 
 GRAPH_QUERY_CONFIG = [

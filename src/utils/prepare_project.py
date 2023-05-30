@@ -26,3 +26,7 @@ def prepare_project_dir(logger: Any) -> None:
     if not os.path.exists(PRICING_LIST_CSV_FOLDER):
         logger.info(f"created {PRICING_LIST_CSV_FOLDER}")
         os.mkdir(PRICING_LIST_CSV_FOLDER)
+
+    if not os.path.exists(TENDER_GRAPH_FOLDER):
+        logger.info(f"created {TENDER_GRAPH_FOLDER}")
+        os.mkdir(TENDER_GRAPH_FOLDER)
