@@ -170,3 +170,4 @@ tender_specification_embeddings
 *.ipynb
 pricing_csv
 tender_graph/*
+tokens.txt
