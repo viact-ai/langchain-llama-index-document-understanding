@@ -1,10 +1,13 @@
 import os 
 import dotenv
+from os import getenv
+dotenv.load_dotenv()
+assert getenv("OPENAI_API_KEY") is not None, "OPENAI_API_KEY not set in .env"
+
 import shutil
 import gradio as gr
 import pandas as pd
 from typing import Union
-from os import getenv
 from src.Features.GenerateQuotation.generate_quotation import aextract_project_requirements, agenerate_quotation, extract_project_requirements, generate_quotation
 from src.Features.GenerateQuotation.index import load_tender_graph, load_tender_index, save_tender_graph, save_tender_index
 from src.utils.df_utils import read_csv_as_str
@@ -19,10 +22,6 @@ from src.ChatWrapper.ChatWrapper import ChatWrapper
 from src.constants import KNOWLEDGE_GRAPH_FOLDER, PRICING_LIST_CSV_FOLDER, SAVE_DIR, SUMMARY_PROMPT_FOR_EACH_INDEX, TENDER_GRAPH_FOLDER, TENDER_SPECIFICATION_INDEX_FOLDER
 from src.Features.GenerateQuotation.prompt import ASK_FOR_PROJECT_REQUIREMENTS_PROMPT, FORMAT_INSTRUCTION, RULES_PROMPT
 from src.utils.prepare_project import prepare_project_dir
-
-
-dotenv.load_dotenv()
-assert getenv("OPENAI_API_KEY") is not None, "OPENAI_API_KEY not set in .env"
 
 
 def load_agent(index_name: str = None) -> AgentExecutor:

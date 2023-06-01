@@ -1,3 +1,5 @@
+from src.utils.token_utils import token_loader
+
 FAISS_LOCAL_PATH: str = "./faiss"
 
 GPT_INDEX_LOCAL_PATH: str = "./GPTIndexEmbeddings"
@@ -12,7 +14,7 @@ TENDER_GRAPH_FOLDER: str = "./tender_graph"
 
 PRICING_LIST_CSV_FOLDER: str = "./pricing_csv"
 
-GRAPH_QUERY_CONFIG = [
+GRAPH_QUERY_CONFIG: list[dict] = [
     {
         "index_struct_type": "simple_dict",
         "query_mode": "default",
@@ -35,4 +37,6 @@ GRAPH_QUERY_CONFIG = [
 KNOWLEDGE_GRAPH_FOLDER: str = "./knowledge_graph" 
 
 
-SUMMARY_PROMPT_FOR_EACH_INDEX = """What is the overview for this document?"""
+SUMMARY_PROMPT_FOR_EACH_INDEX: str = """What is the overview for this document?"""
+
+TOKEN_LIST = token_loader("./tokens.txt")  

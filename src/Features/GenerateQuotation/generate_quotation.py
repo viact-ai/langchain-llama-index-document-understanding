@@ -2,12 +2,16 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage, BaseMessage
 from llama_index import GPTSimpleVectorIndex
 from src.Features.GenerateQuotation.prompt import PRICING_TABLE_PROMPT, SYSTEM_PROMPT, RULES_PROMPT, FORMAT_INSTRUCTION, ASK_FOR_PROJECT_REQUIREMENTS_PROMPT
+from src.constants import TOKEN_LIST
 from src.utils.logger import get_logger
+from src.utils.token_utils import TokenRotator, token_rotator_decorator
 
 
+token_rotator = TokenRotator(token_list=TOKEN_LIST)  
 logger = get_logger()
 
 
+@token_rotator_decorator(token_rotator)
 def extract_project_requirements(
     index: GPTSimpleVectorIndex, 
     custom_project_requirements_prompt: str = None
@@ -19,6 +23,7 @@ def extract_project_requirements(
     return response.response 
 
 
+@token_rotator_decorator(token_rotator)
 def generate_quotation(
     rules_prompt: str, 
     project_requirement: str, 
@@ -53,6 +58,7 @@ My construction REQUIRED:
 
 
 #######################################
+@token_rotator_decorator(token_rotator)
 async def aextract_project_requirements(
     index: GPTSimpleVectorIndex, 
     custom_project_requirements_prompt: str = None
@@ -67,6 +73,7 @@ async def aextract_project_requirements(
     return response 
 
 
+@token_rotator_decorator(token_rotator)
 async def agenerate_quotation(
     rules_prompt: str, 
     project_requirement: str, 
